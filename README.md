@@ -1,23 +1,28 @@
 # `runs` — the opposite of `uniq`
 
 `runs` is a simple, stateless command-line utility which filters an
-input stream for only lines which share their first N bytes with a line
-adjacent to them (ignoring empty lines.) Lines which do not share a common
-prefix of length N with an adjacent line will be dropped.
+input stream for only non-unique lines (i.e. lines that are "the same" as
+at least one line above or below them.) In this sense, it does the opposite
+of what POSIX `uniq(1)` does: `uniq(1)` gives you the stream without the
+duplicates, while `runs(1)` gives you *only* the duplicates.
 
-Or, to put that another way, `runs` considers the first N bytes of each line
-the "bucket key" for the line, and emits only "buckets" with more than one member.
+This behavior isn't of much use by itself (as far as I know!), but `runs` can
+also take a flag `--prefixlen` (`-p` for short) to specify that lines should
+be compared for "same-ness" by only their first N bytes. This turns `runs` into
+a sort of "bucketing" or "chunking" stream, working much like the
+`chunk_by` stream combinator found in some dynamic languages. Unlike these
+stream combinators, `runs` will toss out any "bucket" with only one member.
 
-`runs` is O(N) in time, and O(1) in memory usage. This makes it safe to use
-in on datasets with large "buckets", where a dynamic language's `group_by` or
+`runs` is O(N) in time, and O(1) in memory usage; it doesn't buffer the entire
+"bucket" before emitting it. This makes it safe to use as a filter on datasets
+with potentially huge "buckets", where a dynamic language's `group_by` or
 `chunk_by` stream combinator might generate excessive garbage or even choke on
 the input.
 
-`runs` is useful as a preprocessing step when analyzing real-world hash-table
-or trie keysets for their collision or nesting-depth properties. A large
-keyspace dump, with mostly "trivial" (1:1 pigeonholed) keys, can be filtered
-down to only the non-trivial keys.
-
+`runs` (with the `-p` flag) is useful as a preprocessing step when analyzing
+real-world hash-table or trie keysets for their collision or nesting-depth
+properties. A large keyspace dump, with mostly "trivial" (1:1 pigeonholed) keys,
+can be filtered down to only the non-trivial keys.
 
 ## Example usage
 
@@ -42,15 +47,16 @@ d2
 d3
 ```
 
-## Also, there's `singles`
+## Usage and options
 
-...which is "the opposite of the opposite of `uniq`." :grin: `singles` will
-filter the input stream for only those lines that form single-member buckets,
-i.e. which have no adjacent lines with the same prefix.
+`runs` takes two options:
 
-I'm not sure if there's a use for `singles`, but I threw it in. Let me know if
-it's useful for you!
+* `--prefixlen=LEN`, `-p LEN`: as explained above, rather than comparing
+  entire lines for equality, a `LEN`-byte prefix of the line will be compared
+  instead. `runs` will exit with an error if it encounters a line shorter than
+  the specified prefix length.
 
-`runs` and `singles` are actually just two copies of the same binary; which
-behavior you get from them depends on the executable's name (sort of like
-`xz` and `unxz`.) You can hard link one to the other if you like.
+* `--invert`, `-i`: emits orphans (lines that aren't part of a run) rather than
+  runs. This behavior isn't *quite* the same as that of the POSIX `uniq(1)`
+  program; where `uniq(1)` would emit the first member of a multi-member bucket,
+  `runs -i` will emit no members from such buckets.
